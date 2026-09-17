@@ -10,17 +10,32 @@
 //   the audio directly against the Gemini API so the assistant still replies.
 // - Always answers the client with 200 OK so the WebApp never sees a 404,
 //   even if the downstream integration is temporarily unreachable.
+// - Also opens a lightweight WebSocket server (ws) on the same HTTP server,
+//   reserved for future real-time/streaming audio use; it does not affect
+//   the existing POST /api/audio flow used by the current UI.
 
-require('dotenv').config();
+// ---------------------------------------------------------------------------
+// dotenv — loaded defensively so a missing module or a missing local .env
+// file (normal on Render, where env vars are set in the dashboard) never
+// crashes the server.
+// ---------------------------------------------------------------------------
+try {
+  require('dotenv').config();
+} catch (e) {
+  console.warn('[dotenv] module not available, continuing with process.env as-is:', e.message);
+}
 
 const express = require('express');
 const multer = require('multer');
 const axios = require('axios');
 const cors = require('cors');
 const path = require('path');
+const http = require('http');
 const FormData = require('form-data');
+const { WebSocketServer } = require('ws');
 
 const app = express();
+const server = http.createServer(app);
 
 const PORT = process.env.PORT || 10000;
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || '';
@@ -148,7 +163,8 @@ app.get('/health', function (req, res) {
   res.status(200).json({
     status: 'ok',
     n8n_configured: Boolean(N8N_WEBHOOK_URL),
-    gemini_configured: Boolean(GEMINI_API_KEY)
+    gemini_configured: Boolean(GEMINI_API_KEY),
+    websocket: 'ready'
   });
 });
 
@@ -206,6 +222,15 @@ app.post('/api/audio', upload.single('audio'), async function (req, res) {
       }
     }
 
+    // Broadcast the reply to any connected WebSocket clients for this chat_id
+    // (reserved for future real-time UI updates); safe no-op if none connected.
+    broadcastToChat(chatId, {
+      type: 'audio_reply',
+      chat_id: chatId,
+      source: source,
+      reply_text: replyText
+    });
+
     // Always return 200 to the WebApp — the mic/VAD loop on the client
     // should never break because a downstream integration hiccuped.
     return res.status(200).json({
@@ -239,11 +264,53 @@ app.get('*', function (req, res) {
 });
 
 // ---------------------------------------------------------------------------
+// WebSocket server (reserved for future real-time/streaming audio support)
+// ---------------------------------------------------------------------------
+
+const wss = new WebSocketServer({ server: server, path: '/ws' });
+const wsClientsByChat = new Map(); // chat_id -> Set<ws>
+
+function broadcastToChat(chatId, payload) {
+  const clients = wsClientsByChat.get(String(chatId));
+  if (!clients || clients.size === 0) return;
+  const message = JSON.stringify(payload);
+  clients.forEach(function (client) {
+    if (client.readyState === client.OPEN) {
+      try { client.send(message); } catch (e) { /* ignore individual send failures */ }
+    }
+  });
+}
+
+wss.on('connection', function (ws, req) {
+  let chatId = 'unknown';
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    chatId = url.searchParams.get('chat_id') || 'unknown';
+  } catch (e) { /* keep default chatId */ }
+
+  if (!wsClientsByChat.has(chatId)) wsClientsByChat.set(chatId, new Set());
+  wsClientsByChat.get(chatId).add(ws);
+
+  ws.on('close', function () {
+    const set = wsClientsByChat.get(chatId);
+    if (set) {
+      set.delete(ws);
+      if (set.size === 0) wsClientsByChat.delete(chatId);
+    }
+  });
+
+  ws.on('error', function (e) {
+    console.error('[ws] client error:', e.message);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Start
 // ---------------------------------------------------------------------------
 
-app.listen(PORT, function () {
+server.listen(PORT, function () {
   console.log('Alveer voice-call server listening on port ' + PORT);
   console.log('n8n webhook configured: ' + Boolean(N8N_WEBHOOK_URL));
   console.log('Gemini API configured: ' + Boolean(GEMINI_API_KEY));
+  console.log('WebSocket endpoint ready at /ws');
 });
