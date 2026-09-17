@@ -2,58 +2,162 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>إلفير - مساعد صوتي</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>إلفير - اتصال صوتي</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body { background: #0f172a; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .mic-btn { width: 100px; height: 100px; border-radius: 50%; border: none; background: #2563eb; color: #fff; font-size: 32px; cursor: pointer; transition: 0.3s; box-shadow: 0 0 20px rgba(37, 99, 235, 0.5); }
-    .mic-btn.recording { background: #dc2626; box-shadow: 0 0 25px rgba(220, 38, 38, 0.8); animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
-    #status { margin-top: 20px; font-size: 16px; color: #94a3b8; }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: #0d1424;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      height: 100vh;
+      padding: 50px 20px;
+    }
+    .header { text-align: center; }
+    .title { font-size: 26px; font-weight: 700; margin-bottom: 8px; letter-spacing: 0.5px; }
+    .status { font-size: 15px; color: #8f9bba; font-variant-numeric: tabular-nums; }
+    
+    .call-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      flex: 1;
+    }
+    .mic-ring {
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: rgba(37, 99, 235, 0.15);
+      border: 2px solid rgba(59, 130, 246, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    .mic-ring.active {
+      border-color: #3b82f6;
+      box-shadow: 0 0 35px rgba(59, 130, 246, 0.6);
+      animation: pulseRing 1.8s infinite;
+    }
+    .mic-icon {
+      width: 80px;
+      height: 80px;
+      background: #2563eb;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 34px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    
+    @keyframes pulseRing {
+      0% { transform: scale(0.98); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+      70% { transform: scale(1.08); box-shadow: 0 0 0 25px rgba(59, 130, 246, 0); }
+      100% { transform: scale(0.98); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      width: 100%;
+      max-width: 320px;
+    }
+    .btn-circle {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: none;
+      background: #ffffff;
+      color: #0d1424;
+      font-size: 22px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+    }
+    .btn-end {
+      width: 70px;
+      height: 70px;
+      background: #ef4444;
+      color: white;
+      font-size: 28px;
+    }
   </style>
 </head>
 <body>
-  <h2>المساعد الصوتي إلفير</h2>
-  <button id="micBtn" class="mic-btn">🎙️</button>
-  <div id="status">اضغط للمحادثة</div>
+
+  <div class="header">
+    <div class="title">إلفير</div>
+    <div class="status" id="timer">00:00</div>
+  </div>
+
+  <div class="call-container">
+    <div class="mic-ring active" id="micRing">
+      <div class="mic-icon">🎙️</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-circle">🔊</button>
+    <button class="btn-circle btn-end" id="endBtn">📞</button>
+    <button class="btn-circle">🎙️</button>
+  </div>
 
   <script>
     const tg = window.Telegram?.WebApp;
-    if (tg) tg.expand();
+    if (tg) { tg.expand(); tg.ready(); }
 
-    const micBtn = document.getElementById('micBtn');
-    const status = document.getElementById('status');
+    let seconds = 0;
+    const timerElem = document.getElementById('timer');
+    setInterval(() => {
+      seconds++;
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      timerElem.innerText = `${m}:${s}`;
+    }, 1000);
+
     let mediaRecorder, audioChunks = [];
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.onstop = sendAudio;
+        mediaRecorder.start();
+      } catch (e) {
+        timerElem.innerText = "يرجى السماح بالمايكروفون";
+      }
+    }
 
-    micBtn.onclick = async () => {
+    async function sendAudio() {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const formData = new FormData();
+      formData.append('audio', audioBlob);
+      formData.append('chat_id', tg?.initDataUnsafe?.user?.id || 'web');
+
+      try {
+        await fetch('/webhook-voice', { method: 'POST', body: formData });
+      } catch (err) {}
+    }
+
+    document.getElementById('endBtn').onclick = () => {
       if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
-        micBtn.classList.remove('recording');
-        status.innerText = "جاري إرسال الصوت...";
-      } else {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(stream);
-          audioChunks = [];
-          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-          mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            const formData = new FormData();
-            formData.append('audio', audioBlob);
-            formData.append('chat_id', tg?.initDataUnsafe?.user?.id || 'web');
-
-            try {
-              const res = await fetch('/api/audio', { method: 'POST', body: formData });
-              status.innerText = res.ok ? "تم الرد بنجاح!" : "حدث خطأ بالاتصال";
-            } catch (err) { status.innerText = "فشل الإرسال للسيرفر"; }
-          };
-          mediaRecorder.start();
-          micBtn.classList.add('recording');
-          status.innerText = "جاري الاستماع... اضغط لإكمال الرسالة";
-        } catch (err) { status.innerText = "يرجى تفعيل إذن المايكروفون"; }
       }
+      if (tg) tg.close();
     };
+
+    startRecording();
   </script>
 </body>
 </html>
