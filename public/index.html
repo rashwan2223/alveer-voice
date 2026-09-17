@@ -1,163 +1,714 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>إلفير - اتصال صوتي</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-    body {
-      background: #0d1424;
-      color: #ffffff;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      align-items: center;
-      height: 100vh;
-      padding: 50px 20px;
-    }
-    .header { text-align: center; }
-    .title { font-size: 26px; font-weight: 700; margin-bottom: 8px; letter-spacing: 0.5px; }
-    .status { font-size: 15px; color: #8f9bba; font-variant-numeric: tabular-nums; }
-    
-    .call-container {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      width: 100%;
-      flex: 1;
-    }
-    .mic-ring {
-      width: 160px;
-      height: 160px;
-      border-radius: 50%;
-      background: rgba(37, 99, 235, 0.15);
-      border: 2px solid rgba(59, 130, 246, 0.5);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      transition: all 0.3s ease;
-      position: relative;
-    }
-    .mic-ring.active {
-      border-color: #3b82f6;
-      box-shadow: 0 0 35px rgba(59, 130, 246, 0.6);
-      animation: pulseRing 1.8s infinite;
-    }
-    .mic-icon {
-      width: 80px;
-      height: 80px;
-      background: #2563eb;
-      border-radius: 50%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 34px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    
-    @keyframes pulseRing {
-      0% { transform: scale(0.98); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
-      70% { transform: scale(1.08); box-shadow: 0 0 0 25px rgba(59, 130, 246, 0); }
-      100% { transform: scale(0.98); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d1424">
+<title>إلفير — مكالمة صوتية</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg:#0d1424;
+    --bg-2:#0f172a;
+    --ink:#eaf2ff;
+    --muted:#8ea3c4;
+    --accent:#3ec8ff;
+    --accent-2:#6f8cff;
+    --green:#34d07f;
+    --red:#f2453d;
+    --ctrl:#1b2740;
+    --ctrl-on:#eaf2ff;
+    --ring-glow:rgba(62,200,255,.45);
+    --level:0;
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
 
-    .controls {
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      width: 100%;
-      max-width: 320px;
-    }
-    .btn-circle {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      border: none;
-      background: #ffffff;
-      color: #0d1424;
-      font-size: 22px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      cursor: pointer;
-    }
-    .btn-end {
-      width: 70px;
-      height: 70px;
-      background: #ef4444;
-      color: white;
-      font-size: 28px;
-    }
-  </style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+
+  html,body{height:100%;margin:0;}
+
+  body{
+    background:
+      radial-gradient(120% 80% at 50% -10%, #1a2a4a 0%, rgba(26,42,74,0) 60%),
+      radial-gradient(90% 60% at 50% 110%, #16213a 0%, rgba(22,33,58,0) 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family:"SF Pro Display","Segoe UI",system-ui,-apple-system,"Noto Kufi Arabic","Tajawal",Roboto,Arial,sans-serif;
+    overflow:hidden;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+
+  .app{
+    position:fixed;
+    inset:0;
+    display:grid;
+    grid-template-rows:auto 1fr auto;
+    padding:calc(18px + var(--safe-top)) 20px calc(22px + var(--safe-bottom));
+  }
+
+  /* ---------- الهيكل العلوي ---------- */
+  .head{text-align:center;}
+
+  .secure{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    font-size:11.5px;
+    letter-spacing:.2px;
+    color:var(--muted);
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.06);
+    padding:5px 12px;
+    border-radius:999px;
+  }
+  .secure i{
+    width:6px;height:6px;border-radius:50%;
+    background:var(--green);
+    box-shadow:0 0 10px var(--green);
+    animation:pulseDot 2.2s ease-in-out infinite;
+  }
+  .secure.offline i{background:var(--muted);box-shadow:none;animation:none;}
+  @keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .name{
+    margin:16px 0 6px;
+    font-size:34px;
+    font-weight:700;
+    letter-spacing:.5px;
+    line-height:1.15;
+  }
+
+  .timer{
+    font-size:16px;
+    font-weight:500;
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+    font-feature-settings:"tnum";
+    letter-spacing:1px;
+    direction:ltr;
+  }
+  .timer.live{color:var(--accent);}
+
+  /* ---------- الهالة الصوتية ---------- */
+  .stage{
+    position:relative;
+    display:grid;
+    place-items:center;
+    min-height:0;
+  }
+
+  .ring-wrap{
+    position:relative;
+    width:min(82vw,330px);
+    aspect-ratio:1/1;
+    display:grid;
+    place-items:center;
+  }
+
+  canvas#viz{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+  }
+
+  .halo{
+    position:absolute;
+    width:52%;
+    aspect-ratio:1/1;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(62,200,255,.30) 0%, rgba(62,200,255,0) 70%);
+    transform:scale(calc(1 + var(--level) * .55));
+    transition:transform .08s linear;
+    pointer-events:none;
+  }
+
+  .avatar{
+    position:relative;
+    width:38%;
+    aspect-ratio:1/1;
+    border-radius:50%;
+    display:grid;
+    place-items:center;
+    background:linear-gradient(150deg,#2b4ea8 0%,#1b2b52 55%,#16223d 100%);
+    border:1px solid rgba(255,255,255,.10);
+    box-shadow:0 18px 50px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.12);
+    font-size:clamp(34px,11vw,52px);
+    font-weight:700;
+    color:#dce9ff;
+    transform:scale(calc(1 + var(--level) * .07));
+    transition:transform .08s linear;
+  }
+
+  .hint{
+    text-align:center;
+    font-size:12.5px;
+    color:var(--muted);
+    min-height:18px;
+    margin-top:14px;
+    padding:0 10px;
+    line-height:1.6;
+  }
+  .hint.warn{color:#ffb35c;}
+  .hint.ok{color:var(--green);}
+
+  /* ---------- شريط التحكم ---------- */
+  .controls{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:clamp(22px,9vw,42px);
+    padding-top:10px;
+  }
+
+  .btn{
+    position:relative;
+    width:64px;height:64px;
+    border-radius:50%;
+    border:1px solid rgba(255,255,255,.07);
+    background:var(--ctrl);
+    color:var(--ctrl-on);
+    display:grid;
+    place-items:center;
+    cursor:pointer;
+    transition:transform .12s ease, background .18s ease, color .18s ease, box-shadow .18s ease;
+    box-shadow:0 10px 24px rgba(0,0,0,.35);
+  }
+  .btn svg{width:26px;height:26px;fill:currentColor;}
+  .btn:active{transform:scale(.92);}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px;}
+  .btn[aria-pressed="true"]{background:var(--ctrl-on);color:#0f1a30;}
+  .btn[disabled]{opacity:.45;pointer-events:none;}
+
+  .btn .label{
+    position:absolute;
+    bottom:-24px;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:11px;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+
+  .btn.hang{
+    width:74px;height:74px;
+    background:var(--red);
+    border-color:rgba(255,255,255,.12);
+    color:#fff;
+    box-shadow:0 14px 34px rgba(242,69,61,.42);
+  }
+  .btn.hang svg{width:32px;height:32px;}
+
+  /* ---------- شاشة البدء ---------- */
+  .gate{
+    position:fixed;
+    inset:0;
+    z-index:20;
+    display:grid;
+    place-items:center;
+    background:rgba(9,14,26,.86);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    padding:24px;
+    text-align:center;
+  }
+  .gate.hidden{display:none;}
+  .gate h1{font-size:28px;margin:0 0 10px;font-weight:700;}
+  .gate p{color:var(--muted);font-size:14px;line-height:1.8;margin:0 auto 26px;max-width:300px;}
+  .answer{
+    width:86px;height:86px;
+    border-radius:50%;
+    border:none;
+    background:var(--green);
+    color:#04150c;
+    display:grid;place-items:center;
+    cursor:pointer;
+    box-shadow:0 0 0 0 rgba(52,208,127,.55);
+    animation:ripple 2s infinite;
+  }
+  .answer svg{width:36px;height:36px;fill:currentColor;}
+  .answer:active{transform:scale(.94);}
+  @keyframes ripple{
+    0%{box-shadow:0 0 0 0 rgba(52,208,127,.5);}
+    70%{box-shadow:0 0 0 26px rgba(52,208,127,0);}
+    100%{box-shadow:0 0 0 0 rgba(52,208,127,0);}
+  }
+
+  .toast{
+    position:fixed;
+    left:50%;
+    bottom:calc(120px + var(--safe-bottom));
+    transform:translate(-50%,14px);
+    background:rgba(16,26,46,.96);
+    border:1px solid rgba(255,255,255,.08);
+    color:var(--ink);
+    font-size:13px;
+    padding:10px 16px;
+    border-radius:12px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .22s ease, transform .22s ease;
+    z-index:30;
+    max-width:86vw;
+    text-align:center;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0);}
+
+  @media (prefers-reduced-motion:reduce){
+    .answer{animation:none;}
+    .secure i{animation:none;}
+    .halo,.avatar{transition:none;}
+  }
+
+  @media (max-height:620px){
+    .name{font-size:28px;margin-top:10px;}
+    .ring-wrap{width:min(66vw,250px);}
+    .btn{width:58px;height:58px;}
+    .btn.hang{width:66px;height:66px;}
+  }
+</style>
 </head>
 <body>
 
-  <div class="header">
-    <div class="title">إلفير</div>
-    <div class="status" id="timer">00:00</div>
-  </div>
+<div class="app">
+  <header class="head">
+    <div class="secure offline" id="status"><i></i><span id="statusText">جارٍ التهيئة…</span></div>
+    <h1 class="name">إلفير</h1>
+    <div class="timer" id="timer">00:00</div>
+  </header>
 
-  <div class="call-container">
-    <div class="mic-ring active" id="micRing">
-      <div class="mic-icon">🎙️</div>
+  <section class="stage">
+    <div class="ring-wrap" id="ringWrap">
+      <canvas id="viz"></canvas>
+      <div class="halo"></div>
+      <div class="avatar" id="avatar">إ</div>
     </div>
+  </section>
+
+  <div>
+    <p class="hint" id="hint">اضغط على الدائرة لإرسال المقطع الصوتي دون إنهاء المكالمة.</p>
+    <nav class="controls">
+      <button class="btn" id="btnSpeaker" type="button" aria-pressed="false" aria-label="مكبر الصوت">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zm11.5 3a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 15.5 12zM13.5 3.2v2.06a6.8 6.8 0 0 1 0 13.48v2.06a8.8 8.8 0 0 0 0-17.6z"/></svg>
+        <span class="label">مكبر الصوت</span>
+      </button>
+
+      <button class="btn hang" id="btnHang" type="button" aria-label="إنهاء المكالمة">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-3.1 0-6 .6-8.4 1.8C2 8.6 1.4 10.5 2.1 12l1 2.1c.4.8 1.3 1.1 2.1.8l2.6-1c.7-.3 1.1-1 1-1.7l-.2-1.4c2.2-.7 4.6-.7 6.8 0l-.2 1.4c-.1.8.3 1.5 1 1.7l2.6 1c.8.3 1.7 0 2.1-.8l1-2.1c.7-1.5.1-3.4-1.5-4.2C18 6.6 15.1 6 12 6z"/></svg>
+      </button>
+
+      <button class="btn" id="btnMute" type="button" aria-pressed="false" aria-label="كتم المايكروفون">
+        <svg viewBox="0 0 24 24" aria-hidden="true" id="micIcon"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z"/></svg>
+        <span class="label">كتم</span>
+      </button>
+    </nav>
   </div>
+</div>
 
-  <div class="controls">
-    <button class="btn-circle">🔊</button>
-    <button class="btn-circle btn-end" id="endBtn">📞</button>
-    <button class="btn-circle">🎙️</button>
+<div class="gate" id="gate">
+  <div>
+    <h1>إلفير</h1>
+    <p>مكالمة صوتية واردة. اضغط للرد والسماح باستخدام المايكروفون.</p>
+    <button class="answer" id="btnAnswer" type="button" aria-label="الرد على المكالمة">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.3 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.3 1.1l-2.2 1.9z"/></svg>
+    </button>
   </div>
+</div>
 
-  <script>
-    const tg = window.Telegram?.WebApp;
-    if (tg) { tg.expand(); tg.ready(); }
+<div class="toast" id="toast"></div>
 
-    let seconds = 0;
-    const timerElem = document.getElementById('timer');
-    setInterval(() => {
-      seconds++;
-      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-      const s = String(seconds % 60).padStart(2, '0');
-      timerElem.innerText = `${m}:${s}`;
-    }, 1000);
+<script>
+(function () {
+  "use strict";
 
-    let mediaRecorder, audioChunks = [];
-    async function startRecording() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
-        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-        mediaRecorder.onstop = sendAudio;
-        mediaRecorder.start();
-      } catch (e) {
-        timerElem.innerText = "يرجى السماح بالمايكروفون";
-      }
+  /* ============ الإعدادات ============ */
+  var API_ENDPOINT = "/api/audio";
+  var DEFAULT_INPUT_TEXT = "رسالة صوتية من واجهة مكالمة إلفير";
+
+  /* ============ تلغرام ============ */
+  var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+  if (tg) {
+    try { tg.ready(); } catch (e) {}
+    try { tg.expand(); } catch (e) {}
+    try { tg.setHeaderColor("#0d1424"); } catch (e) {}
+    try { tg.setBackgroundColor("#0d1424"); } catch (e) {}
+    try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {}
+  }
+  var chatId = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id)
+    ? String(tg.initDataUnsafe.user.id) : "";
+
+  function haptic(type) {
+    try { tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred(type || "medium"); } catch (e) {}
+  }
+
+  /* ============ العناصر ============ */
+  var $ = function (id) { return document.getElementById(id); };
+  var elTimer = $("timer"), elHint = $("hint"), elStatus = $("status"), elStatusText = $("statusText");
+  var elToast = $("toast"), elGate = $("gate"), elCanvas = $("viz"), elRingWrap = $("ringWrap");
+  var btnAnswer = $("btnAnswer"), btnHang = $("btnHang"), btnMute = $("btnMute"), btnSpeaker = $("btnSpeaker");
+  var micIcon = $("micIcon");
+  var rootStyle = document.documentElement.style;
+
+  var MIC_ON = "M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z";
+  var MIC_OFF = "M3.3 2 2 3.3l7 7V11a3 3 0 0 0 4.6 2.5l1.5 1.5A5 5 0 0 1 7 11H5a7 7 0 0 0 9.6 6.5l3.1 3.2 1.3-1.3L3.3 2zM15 11V6a3 3 0 0 0-5.9-.8l5.8 5.8H15zm4 0h-2c0 .7-.1 1.3-.3 1.9l1.5 1.5A7 7 0 0 0 19 11z";
+
+  /* ============ الحالة ============ */
+  var stream = null, audioCtx = null, analyser = null, sourceNode = null, freqData = null;
+  var recorder = null, chunks = [], rafId = 0, timerId = 0;
+  var startedAt = 0, level = 0, callActive = false, pendingClose = false, sending = false;
+
+  /* ============ رسائل الحالة ============ */
+  function setStatus(text, online) {
+    elStatusText.textContent = text;
+    elStatus.classList.toggle("offline", !online);
+  }
+  function setHint(text, kind) {
+    elHint.textContent = text;
+    elHint.className = "hint" + (kind ? " " + kind : "");
+  }
+  var toastId = 0;
+  function toast(text) {
+    elToast.textContent = text;
+    elToast.classList.add("show");
+    clearTimeout(toastId);
+    toastId = setTimeout(function () { elToast.classList.remove("show"); }, 2600);
+  }
+
+  /* ============ العداد الزمني ============ */
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function renderTime() {
+    var s = Math.floor((Date.now() - startedAt) / 1000);
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    elTimer.textContent = (h > 0 ? pad(h) + ":" : "") + pad(m) + ":" + pad(sec);
+  }
+  function startTimer() {
+    startedAt = Date.now();
+    elTimer.classList.add("live");
+    renderTime();
+    clearInterval(timerId);
+    timerId = setInterval(renderTime, 500);
+  }
+  function stopTimer() {
+    clearInterval(timerId);
+    timerId = 0;
+    elTimer.classList.remove("live");
+  }
+
+  /* ============ الرسم على الكانفس ============ */
+  var ctx2d = elCanvas.getContext("2d");
+  var cw = 0, ch = 0, dpr = 1;
+
+  function resizeCanvas() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    var rect = elRingWrap.getBoundingClientRect();
+    cw = Math.max(1, Math.round(rect.width));
+    ch = Math.max(1, Math.round(rect.height));
+    elCanvas.width = Math.round(cw * dpr);
+    elCanvas.height = Math.round(ch * dpr);
+    ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener("resize", resizeCanvas);
+  window.addEventListener("orientationchange", function () { setTimeout(resizeCanvas, 180); });
+  resizeCanvas();
+
+  var BARS = 108;
+  var smooth = new Float32Array(BARS);
+  var spin = 0;
+
+  function drawFrame() {
+    rafId = requestAnimationFrame(drawFrame);
+
+    var cx = cw / 2, cy = ch / 2;
+    var base = Math.min(cw, ch) * 0.30;
+    var maxBar = Math.min(cw, ch) * 0.17;
+
+    ctx2d.clearRect(0, 0, cw, ch);
+
+    var sum = 0, bins = 0;
+    if (analyser && freqData) {
+      analyser.getByteFrequencyData(freqData);
+      var useful = Math.floor(freqData.length * 0.62);
+      for (var k = 0; k < useful; k++) { sum += freqData[k]; bins++; }
     }
+    var raw = bins ? (sum / bins) / 255 : 0;
+    level += (raw - level) * 0.22;
+    if (level < 0.002) level = 0;
+    rootStyle.setProperty("--level", level.toFixed(4));
 
-    async function sendAudio() {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-      const formData = new FormData();
-      formData.append('audio', audioBlob);
-      formData.append('chat_id', tg?.initDataUnsafe?.user?.id || 'web');
+    spin += 0.0022 + level * 0.010;
 
-      try {
-        await fetch('/webhook-voice', { method: 'POST', body: formData });
-      } catch (err) {}
-    }
+    // حلقة أساسية هادئة
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, base, 0, Math.PI * 2);
+    ctx2d.strokeStyle = "rgba(122,160,220,0.16)";
+    ctx2d.lineWidth = 1.2;
+    ctx2d.stroke();
 
-    document.getElementById('endBtn').onclick = () => {
-      if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
+    // حلقة متوهجة تتنفس مع الصوت
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, base + 4 + level * 10, 0, Math.PI * 2);
+    ctx2d.strokeStyle = "rgba(62,200,255," + (0.10 + level * 0.55).toFixed(3) + ")";
+    ctx2d.lineWidth = 1.6 + level * 3.2;
+    ctx2d.shadowBlur = 18 + level * 42;
+    ctx2d.shadowColor = "rgba(62,200,255,0.55)";
+    ctx2d.stroke();
+    ctx2d.shadowBlur = 0;
+
+    // أعمدة الطيف حول الدائرة
+    var half = Math.floor(BARS / 2);
+    ctx2d.lineCap = "round";
+    for (var i = 0; i < BARS; i++) {
+      var mirrored = i < half ? i : (BARS - 1 - i);
+      var v = 0;
+      if (freqData) {
+        var idx = Math.floor(Math.pow(mirrored / half, 1.35) * (freqData.length * 0.58));
+        v = freqData[Math.min(idx, freqData.length - 1)] / 255;
       }
-      if (tg) tg.close();
+      smooth[i] += (v - smooth[i]) * 0.35;
+
+      var len = 3 + smooth[i] * maxBar;
+      var ang = spin + (i / BARS) * Math.PI * 2;
+      var x1 = cx + Math.cos(ang) * (base + 8);
+      var y1 = cy + Math.sin(ang) * (base + 8);
+      var x2 = cx + Math.cos(ang) * (base + 8 + len);
+      var y2 = cy + Math.sin(ang) * (base + 8 + len);
+
+      var g = ctx2d.createLinearGradient(x1, y1, x2, y2);
+      g.addColorStop(0, "rgba(111,140,255," + (0.32 + smooth[i] * 0.6).toFixed(3) + ")");
+      g.addColorStop(1, "rgba(62,200,255," + (0.16 + smooth[i] * 0.84).toFixed(3) + ")");
+
+      ctx2d.beginPath();
+      ctx2d.strokeStyle = g;
+      ctx2d.lineWidth = 2.6;
+      ctx2d.moveTo(x1, y1);
+      ctx2d.lineTo(x2, y2);
+      ctx2d.stroke();
+    }
+  }
+
+  /* ============ تشغيل المكالمة ============ */
+  function pickMime() {
+    var list = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
+    for (var i = 0; i < list.length; i++) {
+      if (MediaRecorder.isTypeSupported(list[i])) return list[i];
+    }
+    return "";
+  }
+
+  function startRecorder() {
+    if (!window.MediaRecorder || !stream) {
+      setHint("المتصفح لا يدعم التسجيل، الهالة الصوتية تعمل فقط.", "warn");
+      return;
+    }
+    var mime = pickMime();
+    try {
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    } catch (e) {
+      setHint("تعذّر بدء التسجيل على هذا الجهاز.", "warn");
+      recorder = null;
+      return;
+    }
+    chunks = [];
+    recorder.ondataavailable = function (ev) {
+      if (ev.data && ev.data.size > 0) chunks.push(ev.data);
     };
+    recorder.onstop = function () {
+      var type = (recorder && recorder.mimeType) ? recorder.mimeType : "audio/webm";
+      var blob = chunks.length ? new Blob(chunks, { type: type }) : null;
+      chunks = [];
+      handleSegment(blob);
+    };
+    recorder.start();
+  }
 
-    startRecording();
-  </script>
+  function handleSegment(blob) {
+    if (!blob || blob.size < 1200) {
+      if (pendingClose) finishCall();
+      else setHint("لم يُسجَّل صوت كافٍ. تحدّث ثم اضغط على الدائرة.", "warn");
+      return;
+    }
+    sendAudio(blob);
+  }
+
+  function sendAudio(blob) {
+    if (sending) return;
+    sending = true;
+    setHint("جارٍ إرسال المقطع…");
+
+    var ext = blob.type.indexOf("ogg") > -1 ? "ogg" : (blob.type.indexOf("mp4") > -1 ? "m4a" : "webm");
+    var fd = new FormData();
+    fd.append("audio", blob, "alveer-" + Date.now() + "." + ext);
+    fd.append("chat_id", chatId);
+    fd.append("input_text", DEFAULT_INPUT_TEXT);
+    if (tg && tg.initData) fd.append("init_data", tg.initData);
+    fd.append("duration", String(Math.max(0, Math.round((Date.now() - startedAt) / 1000))));
+
+    fetch(API_ENDPOINT, { method: "POST", body: fd })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.text();
+      })
+      .then(function () {
+        setHint("تم إرسال المقطع إلى إلفير.", "ok");
+        toast("وصل المقطع الصوتي");
+        haptic("light");
+      })
+      .catch(function (err) {
+        setHint("تعذّر الإرسال: " + err.message + " — تحقق من اتصال الخادم.", "warn");
+        toast("فشل الإرسال");
+      })
+      .then(function () {
+        sending = false;
+        if (pendingClose) finishCall();
+        else if (callActive) startRecorder();
+      });
+  }
+
+  function flushSegment() {
+    if (recorder && recorder.state === "recording") {
+      recorder.stop();
+      return true;
+    }
+    return false;
+  }
+
+  function startCall() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      elGate.classList.add("hidden");
+      setStatus("المايكروفون غير مدعوم", false);
+      setHint("هذا المتصفح لا يدعم الوصول إلى المايكروفون.", "warn");
+      return;
+    }
+
+    setStatus("جارٍ الاتصال…", false);
+
+    navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    }).then(function (s) {
+      stream = s;
+      elGate.classList.add("hidden");
+      callActive = true;
+
+      var AC = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AC();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      sourceNode = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.72;
+      analyser.minDecibels = -85;
+      analyser.maxDecibels = -12;
+      sourceNode.connect(analyser);
+      freqData = new Uint8Array(analyser.frequencyBinCount);
+
+      resizeCanvas();
+      cancelAnimationFrame(rafId);
+      drawFrame();
+
+      startTimer();
+      startRecorder();
+      setStatus("مكالمة صوتية مشفّرة", true);
+      setHint("اضغط على الدائرة لإرسال المقطع الصوتي دون إنهاء المكالمة.");
+      haptic("medium");
+    }).catch(function (err) {
+      elGate.classList.add("hidden");
+      setStatus("المايكروفون مرفوض", false);
+      setHint("لم يُسمح باستخدام المايكروفون (" + (err && err.name ? err.name : "خطأ") + "). افتح إعدادات الإذن ثم أعد فتح التطبيق.", "warn");
+    });
+  }
+
+  /* ============ إنهاء المكالمة ============ */
+  function teardown() {
+    callActive = false;
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+    stopTimer();
+    rootStyle.setProperty("--level", "0");
+    if (stream) {
+      stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+      stream = null;
+    }
+    if (audioCtx) {
+      try { audioCtx.close(); } catch (e) {}
+      audioCtx = null;
+    }
+    analyser = null; sourceNode = null; freqData = null;
+  }
+
+  var closed = false;
+  function finishCall() {
+    if (closed) return;
+    closed = true;
+    teardown();
+    setStatus("انتهت المكالمة", false);
+    setTimeout(function () {
+      if (tg && tg.close) { try { tg.close(); } catch (e) {} }
+    }, 350);
+  }
+
+  function hangUp() {
+    if (pendingClose) return;
+    pendingClose = true;
+    haptic("heavy");
+    btnHang.setAttribute("disabled", "disabled");
+    setStatus("جارٍ الإنهاء…", false);
+    setHint("جارٍ إنهاء المكالمة وإرسال آخر مقطع…");
+    stopTimer();
+    if (!flushSegment() && !sending) finishCall();
+    setTimeout(function () { finishCall(); }, 8000);
+  }
+
+  /* ============ الأزرار ============ */
+  btnAnswer.addEventListener("click", startCall);
+
+  btnHang.addEventListener("click", hangUp);
+
+  btnMute.addEventListener("click", function () {
+    if (!stream) return;
+    var muted = btnMute.getAttribute("aria-pressed") === "true";
+    var next = !muted;
+    stream.getAudioTracks().forEach(function (t) { t.enabled = !next; });
+    btnMute.setAttribute("aria-pressed", next ? "true" : "false");
+    btnMute.setAttribute("aria-label", next ? "إلغاء كتم المايكروفون" : "كتم المايكروفون");
+    micIcon.innerHTML = '<path d="' + (next ? MIC_OFF : MIC_ON) + '"/>';
+    btnMute.querySelector(".label").textContent = next ? "مكتوم" : "كتم";
+    setHint(next ? "المايكروفون مكتوم — لن يُسجَّل صوتك." : "المايكروفون يعمل.", next ? "warn" : null);
+    haptic("light");
+  });
+
+  btnSpeaker.addEventListener("click", function () {
+    var on = btnSpeaker.getAttribute("aria-pressed") === "true";
+    var next = !on;
+    btnSpeaker.setAttribute("aria-pressed", next ? "true" : "false");
+    btnSpeaker.querySelector(".label").textContent = next ? "مكبر يعمل" : "مكبر الصوت";
+    toast(next ? "تم تحويل الصوت إلى مكبر الصوت" : "تم تحويل الصوت إلى سماعة الأذن");
+    haptic("light");
+  });
+
+  // إرسال مقطع أثناء استمرار المكالمة
+  elRingWrap.addEventListener("click", function () {
+    if (!callActive || pendingClose || sending) return;
+    if (flushSegment()) {
+      haptic("medium");
+      setHint("جارٍ إرسال المقطع…");
+    }
+  });
+
+  // زر الرجوع في تلغرام = إنهاء المكالمة
+  try {
+    tg && tg.onEvent && tg.onEvent("backButtonClicked", hangUp);
+  } catch (e) {}
+
+  window.addEventListener("pagehide", function () { teardown(); });
+
+  if (!tg) {
+    setHint("يُفتح هذا التطبيق من داخل تلغرام. سيعمل هنا للمعاينة فقط.", "warn");
+  }
+  setStatus("بانتظار الرد", false);
+})();
+</script>
 </body>
 </html>
