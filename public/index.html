@@ -526,12 +526,30 @@
     fd.append('audio', blob, 'segment_' + Date.now() + '.' + ext);
     fd.append('chat_id', CHAT_ID);
 
+    statusText.textContent = "إلفير يجيب...";
+
     fetch(AUDIO_ENDPOINT, {
       method: 'POST',
       body: fd
     }).then(function(res){
       if (!res.ok) {
         console.warn('Audio upload responded with status', res.status);
+        return;
+      }
+      return res.blob();
+    }).then(function(audioBlob){
+      if (audioBlob && audioBlob.size > 0) {
+        var audioUrl = URL.createObjectURL(audioBlob);
+        var player = new Audio(audioUrl);
+        
+        player.onended = function() {
+          var elapsed = state.callStartTs ? Date.now() - state.callStartTs : 0;
+          statusText.textContent = formatTime(elapsed);
+        };
+
+        player.play().catch(function(e){
+          console.error("Audio playback error:", e);
+        });
       }
     }).catch(function(err){
       console.error('Audio upload failed:', err);
@@ -566,8 +584,6 @@
         analyser.smoothingTimeConstant = 0.6;
         freqData = new Uint8Array(analyser.fftSize);
         sourceNode.connect(analyser);
-        // NOTE: analyser is intentionally NOT connected to audioContext.destination
-        // to avoid echoing the user's own mic back through the speaker.
 
         stopDialingDots();
         startTimer();
@@ -615,7 +631,6 @@
       if (tg && tg.close) {
         try { tg.close(); return; } catch(e){}
       }
-      // fallback when not running inside Telegram
       window.close();
     }, 250);
   }
@@ -647,7 +662,6 @@
   }
 
   function toggleCamera(){
-    // Cosmetic toggle only — this is a voice assistant call, no video stream is requested.
     state.isCameraOn = !state.isCameraOn;
     cameraBtn.classList.toggle('active', !state.isCameraOn);
     if (tg && tg.HapticFeedback) {
