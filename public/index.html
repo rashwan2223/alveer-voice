@@ -318,6 +318,9 @@
   var CHAT_ID = getChatId();
   var AUDIO_ENDPOINT = "/api/audio";
 
+  /* ---------------- Global Audio Player for Autoplay Bypass ---------------- */
+  var globalAudioPlayer = new Audio();
+
   /* ---------------- DOM refs ---------------- */
   var callScreen   = document.getElementById('callScreen');
   var statusText   = document.getElementById('statusText');
@@ -540,16 +543,23 @@
     }).then(function(audioBlob){
       if (audioBlob && audioBlob.size > 0) {
         var audioUrl = URL.createObjectURL(audioBlob);
-        var player = new Audio(audioUrl);
         
-        player.onended = function() {
+        globalAudioPlayer.src = audioUrl;
+        statusText.textContent = "إلفير يتحدث...";
+
+        globalAudioPlayer.onended = function() {
           var elapsed = state.callStartTs ? Date.now() - state.callStartTs : 0;
           statusText.textContent = formatTime(elapsed);
         };
 
-        player.play().catch(function(e){
-          console.error("Audio playback error:", e);
-        });
+        var playPromise = globalAudioPlayer.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(function(e){
+            console.error("Audio playback error:", e);
+            var elapsed = state.callStartTs ? Date.now() - state.callStartTs : 0;
+            statusText.textContent = formatTime(elapsed);
+          });
+        }
       }
     }).catch(function(err){
       console.error('Audio upload failed:', err);
@@ -575,6 +585,9 @@
         mediaStream = stream;
         state.callActive = true;
         state.callConnected = true;
+
+        // تهيئة محرك الصوت لفك حظر التشغيل الآلي بالهاتف
+        globalAudioPlayer.play().catch(function(){});
 
         var AC = window.AudioContext || window.webkitAudioContext;
         audioContext = new AC();
