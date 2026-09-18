@@ -542,12 +542,24 @@
       return res.blob();
     }).then(function(audioBlob){
       if (audioBlob && audioBlob.size > 0) {
+        if (globalAudioPlayer.src) {
+          URL.revokeObjectURL(globalAudioPlayer.src);
+        }
+
         var audioUrl = URL.createObjectURL(audioBlob);
-        
         globalAudioPlayer.src = audioUrl;
         statusText.textContent = "إلفير يتحدث...";
 
+        state.isSpeaking = true;
+
         globalAudioPlayer.onended = function() {
+          state.isSpeaking = false;
+          var elapsed = state.callStartTs ? Date.now() - state.callStartTs : 0;
+          statusText.textContent = formatTime(elapsed);
+        };
+
+        globalAudioPlayer.onerror = function() {
+          state.isSpeaking = false;
           var elapsed = state.callStartTs ? Date.now() - state.callStartTs : 0;
           statusText.textContent = formatTime(elapsed);
         };
@@ -556,6 +568,7 @@
         if (playPromise !== undefined) {
           playPromise.catch(function(e){
             console.error("Audio playback error:", e);
+            state.isSpeaking = false;
             var elapsed = state.callStartTs ? Date.now() - state.callStartTs : 0;
             statusText.textContent = formatTime(elapsed);
           });
@@ -563,6 +576,7 @@
       }
     }).catch(function(err){
       console.error('Audio upload failed:', err);
+      state.isSpeaking = false;
     });
   }
 
@@ -586,7 +600,6 @@
         state.callActive = true;
         state.callConnected = true;
 
-        // تهيئة محرك الصوت لفك حظر التشغيل الآلي بالهاتف
         globalAudioPlayer.play().catch(function(){});
 
         var AC = window.AudioContext || window.webkitAudioContext;
